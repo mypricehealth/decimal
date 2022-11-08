@@ -73,7 +73,7 @@ var factorials = []Decimal{New(1, 0)}
 // Decimal represents a fixed-point decimal. It is immutable.
 // number = value * 10 ^ exp
 type Decimal struct {
-	value *big.Int
+	value int64
 
 	// NOTE(vadim): this must be an int32, because we cast it to float64 during
 	// calculations. If exp is 64 bit, we might lose precision.
@@ -86,7 +86,7 @@ type Decimal struct {
 // New returns a new fixed-point decimal, value * 10 ^ exp.
 func New(value int64, exp int32) Decimal {
 	return Decimal{
-		value: big.NewInt(value),
+		value: value,
 		exp:   exp,
 	}
 }
@@ -99,7 +99,7 @@ func New(value int64, exp int32) Decimal {
 //     NewFromInt(-10).String() // output: "-10"
 func NewFromInt(value int64) Decimal {
 	return Decimal{
-		value: big.NewInt(value),
+		value: value,
 		exp:   0,
 	}
 }
@@ -112,15 +112,19 @@ func NewFromInt(value int64) Decimal {
 //     NewFromInt(-10).String() // output: "-10"
 func NewFromInt32(value int32) Decimal {
 	return Decimal{
-		value: big.NewInt(int64(value)),
+		value: int64(value),
 		exp:   0,
 	}
 }
 
 // NewFromBigInt returns a new Decimal from a big.Int, value * 10 ^ exp
 func NewFromBigInt(value *big.Int, exp int32) Decimal {
+	if !value.IsInt64() {
+		panic(fmt.Sprintf("can't convert %s to decimal", value))
+	}
+
 	return Decimal{
-		value: new(big.Int).Set(value),
+		value: value.Int64(),
 		exp:   exp,
 	}
 }
@@ -199,8 +203,12 @@ func NewFromString(value string) (Decimal, error) {
 		return Decimal{}, fmt.Errorf("can't convert %s to decimal: fractional part too long", originalInput)
 	}
 
+	if !dValue.IsInt64() {
+		return Decimal{}, fmt.Errorf("can't convert %s to decimal", value)
+	}
+
 	return Decimal{
-		value: dValue,
+		value: dValue.Int64(),
 		exp:   int32(exp),
 	}, nil
 }
@@ -316,12 +324,16 @@ func newFromFloat(val float64, bits uint64, flt *floatInfo) Decimal {
 		if d.neg {
 			tmp *= -1
 		}
-		return Decimal{value: big.NewInt(tmp), exp: int32(d.dp) - int32(d.nd)}
+		return Decimal{value: tmp, exp: int32(d.dp) - int32(d.nd)}
 	}
 	dValue := new(big.Int)
 	dValue, ok := dValue.SetString(string(d.d[:d.nd]), 10)
+
 	if ok {
-		return Decimal{value: dValue, exp: int32(d.dp) - int32(d.nd)}
+		if !dValue.IsInt64() || exp > 19 {
+			panic(fmt.Sprintf("Cannot create a Decimal from %v", val))
+		}
+		return Decimal{value: dValue.Int64(), exp: int32(d.dp) - int32(d.nd)}
 	}
 
 	return NewFromFloatWithExponent(val, int32(d.dp)-int32(d.nd))
@@ -408,17 +420,19 @@ func NewFromFloatWithExponent(value float64, exp int32) Decimal {
 		dMant = dMant.Neg(dMant)
 	}
 
+	if !dMant.IsInt64() {
+		panic(fmt.Sprintf("Cannot create a Decimal from %v", value))
+	}
 	return Decimal{
-		value: dMant,
+		value: dMant.Int64(),
 		exp:   exp,
 	}
 }
 
 // Copy returns a copy of decimal with the same value and exponent, but a different pointer to value.
 func (d Decimal) Copy() Decimal {
-	d.ensureInitialized()
 	return Decimal{
-		value: &(*d.value),
+		value: d.value,
 		exp:   d.exp,
 	}
 }
@@ -444,18 +458,16 @@ func (d Decimal) Copy() Decimal {
 //	1.2000
 //
 func (d Decimal) rescale(exp int32) Decimal {
-	d.ensureInitialized()
-
 	if d.exp == exp {
 		return Decimal{
-			new(big.Int).Set(d.value),
+			d.value,
 			d.exp,
 		}
 	}
 
 	// NOTE(vadim): must convert exps to float64 before - to prevent overflow
 	diff := math.Abs(float64(exp) - float64(d.exp))
-	value := new(big.Int).Set(d.value)
+	value := big.NewInt(d.value)
 
 	expScale := new(big.Int).Exp(tenInt, big.NewInt(int64(diff)), nil)
 	if exp > d.exp {
@@ -464,8 +476,11 @@ func (d Decimal) rescale(exp int32) Decimal {
 		value = value.Mul(value, expScale)
 	}
 
+	if !value.IsInt64() {
+		panic(fmt.Sprintf("Cannot rescale by %v", exp))
+	}
 	return Decimal{
-		value: value,
+		value: value.Int64(),
 		exp:   exp,
 	}
 }
@@ -475,10 +490,8 @@ func (d Decimal) Abs() Decimal {
 	if !d.IsNegative() {
 		return d
 	}
-	d.ensureInitialized()
-	d2Value := new(big.Int).Abs(d.value)
 	return Decimal{
-		value: d2Value,
+		value: -d.value,
 		exp:   d.exp,
 	}
 }
@@ -487,9 +500,12 @@ func (d Decimal) Abs() Decimal {
 func (d Decimal) Add(d2 Decimal) Decimal {
 	rd, rd2 := RescalePair(d, d2)
 
-	d3Value := new(big.Int).Add(rd.value, rd2.value)
+	d3Value := new(big.Int).Add(big.NewInt(rd.value), big.NewInt(rd2.value))
+	if !d3Value.IsInt64() {
+		panic(fmt.Sprintf("Addition overflow: %v + %v", d, d2))
+	}
 	return Decimal{
-		value: d3Value,
+		value: d3Value.Int64(),
 		exp:   rd.exp,
 	}
 }
@@ -498,28 +514,26 @@ func (d Decimal) Add(d2 Decimal) Decimal {
 func (d Decimal) Sub(d2 Decimal) Decimal {
 	rd, rd2 := RescalePair(d, d2)
 
-	d3Value := new(big.Int).Sub(rd.value, rd2.value)
+	d3Value := new(big.Int).Sub(big.NewInt(rd.value), big.NewInt(rd2.value))
+	if !d3Value.IsInt64() {
+		panic(fmt.Sprintf("Subtraction overflow: %v - %v", d, d2))
+	}
 	return Decimal{
-		value: d3Value,
+		value: d3Value.Int64(),
 		exp:   rd.exp,
 	}
 }
 
 // Neg returns -d.
 func (d Decimal) Neg() Decimal {
-	d.ensureInitialized()
-	val := new(big.Int).Neg(d.value)
 	return Decimal{
-		value: val,
+		value: -d.value,
 		exp:   d.exp,
 	}
 }
 
 // Mul returns d * d2.
 func (d Decimal) Mul(d2 Decimal) Decimal {
-	d.ensureInitialized()
-	d2.ensureInitialized()
-
 	expInt64 := int64(d.exp) + int64(d2.exp)
 	if expInt64 > math.MaxInt32 || expInt64 < math.MinInt32 {
 		// NOTE(vadim): better to panic than give incorrect results, as
@@ -527,9 +541,12 @@ func (d Decimal) Mul(d2 Decimal) Decimal {
 		panic(fmt.Sprintf("exponent %v overflows an int32!", expInt64))
 	}
 
-	d3Value := new(big.Int).Mul(d.value, d2.value)
+	d3Value := new(big.Int).Mul(big.NewInt(d.value), big.NewInt(d2.value))
+	if !d3Value.IsInt64() {
+		panic(fmt.Sprintf("Multiplication overflow: %v * %v", d, d2))
+	}
 	return Decimal{
-		value: d3Value,
+		value: d3Value.Int64(),
 		exp:   int32(expInt64),
 	}
 }
@@ -539,9 +556,8 @@ func (d Decimal) Mul(d2 Decimal) Decimal {
 // In simpler terms, the given value for shift is added to the exponent
 // of the decimal.
 func (d Decimal) Shift(shift int32) Decimal {
-	d.ensureInitialized()
 	return Decimal{
-		value: new(big.Int).Set(d.value),
+		value: d.value,
 		exp:   d.exp + shift,
 	}
 }
@@ -559,9 +575,7 @@ func (d Decimal) Div(d2 Decimal) Decimal {
 //   0 >= r > -abs(d2) * 10 ^(-precision) if d<0
 // Note that precision<0 is allowed as input.
 func (d Decimal) QuoRem(d2 Decimal, precision int32) (Decimal, Decimal) {
-	d.ensureInitialized()
-	d2.ensureInitialized()
-	if d2.value.Sign() == 0 {
+	if d2.value == 0 {
 		panic("decimal division by 0")
 	}
 	scale := -precision
@@ -574,26 +588,29 @@ func (d Decimal) QuoRem(d2 Decimal, precision int32) (Decimal, Decimal) {
 	// d = a 10^ea
 	// d2 = b 10^eb
 	if e < 0 {
-		aa = *d.value
+		aa = *big.NewInt(d.value)
 		expo.SetInt64(-e)
 		bb.Exp(tenInt, &expo, nil)
-		bb.Mul(d2.value, &bb)
+		bb.Mul(big.NewInt(d2.value), &bb)
 		scalerest = d.exp
 		// now aa = a
 		//     bb = b 10^(scale + eb - ea)
 	} else {
 		expo.SetInt64(e)
 		aa.Exp(tenInt, &expo, nil)
-		aa.Mul(d.value, &aa)
-		bb = *d2.value
+		aa.Mul(big.NewInt(d.value), &aa)
+		bb = *big.NewInt(d2.value)
 		scalerest = scale + d2.exp
 		// now aa = a ^ (ea - eb - scale)
 		//     bb = b
 	}
 	var q, r big.Int
 	q.QuoRem(&aa, &bb, &r)
-	dq := Decimal{value: &q, exp: scale}
-	dr := Decimal{value: &r, exp: scalerest}
+	if !q.IsInt64() {
+		panic(fmt.Sprintf("QuoRem overflow: %v / %v", d, d2))
+	}
+	dq := Decimal{value: q.Int64(), exp: scale}
+	dr := Decimal{value: r.Int64(), exp: scalerest}
 	return dq, dr
 }
 
@@ -608,10 +625,13 @@ func (d Decimal) DivRound(d2 Decimal, precision int32) Decimal {
 	// the actual rounding decision is based on comparing r*10^precision and d2/2
 	// instead compare 2 r 10 ^precision and d2
 	var rv2 big.Int
-	rv2.Abs(r.value)
+	rv2.Abs(big.NewInt(r.value))
 	rv2.Lsh(&rv2, 1)
+	if !rv2.IsInt64() {
+		panic(fmt.Sprintf("DivRound overflow: %v / %v", d, d2))
+	}
 	// now rv2 = abs(r.value) * 2
-	r2 := Decimal{value: &rv2, exp: r.exp + precision}
+	r2 := Decimal{value: rv2.Int64(), exp: r.exp + precision}
 	// r2 is now 2 * r * 10 ^ precision
 	var c = r2.Cmp(d2.Abs())
 
@@ -619,7 +639,7 @@ func (d Decimal) DivRound(d2 Decimal, precision int32) Decimal {
 		return q
 	}
 
-	if d.value.Sign()*d2.value.Sign() < 0 {
+	if d.Sign()*d2.Sign() < 0 {
 		return q.Sub(New(1, -precision))
 	}
 
@@ -662,7 +682,7 @@ func (d Decimal) ExpHullAbrham(overallPrecision uint32) (Decimal, error) {
 	// Algorithm based on Variable precision exponential function.
 	// ACM Transactions on Mathematical Software by T. E. Hull & A. Abrham.
 	if d.IsZero() {
-		return Decimal{oneInt, 0}, nil
+		return Decimal{1, 0}, nil
 	}
 
 	currentPrecision := overallPrecision
@@ -684,7 +704,7 @@ func (d Decimal) ExpHullAbrham(overallPrecision uint32) (Decimal, error) {
 	// Return 1 if abs(d) small enough; this also avoids later over/underflow
 	overflowThreshold2 := New(9, -int32(currentPrecision)-1)
 	if d.Abs().Cmp(overflowThreshold2) <= 0 {
-		return Decimal{oneInt, d.exp}, nil
+		return Decimal{1, d.exp}, nil
 	}
 
 	// t is the smallest integer >= 0 such that the corresponding abs(d/k) < 1
@@ -694,9 +714,9 @@ func (d Decimal) ExpHullAbrham(overallPrecision uint32) (Decimal, error) {
 		t = 0
 	}
 
-	k := New(1, t)                                     // reduction factor
-	r := Decimal{new(big.Int).Set(d.value), d.exp - t} // reduced argument
-	p := int32(currentPrecision) + t + 2               // precision for calculating the sum
+	k := New(1, t)                       // reduction factor
+	r := Decimal{d.value, d.exp - t}     // reduced argument
+	p := int32(currentPrecision) + t + 2 // precision for calculating the sum
 
 	// Determine n, the number of therms for calculating sum
 	// use first Newton step (1.435p - 1.182) / log10(p/abs(r))
@@ -714,7 +734,7 @@ func (d Decimal) ExpHullAbrham(overallPrecision uint32) (Decimal, error) {
 	sum := New(1, 0)
 	one := New(1, 0)
 	for i := n - 1; i > 0; i-- {
-		tmp.value.SetInt64(i)
+		tmp.value = i
 		sum = sum.Mul(r.DivRound(tmp, p))
 		sum = sum.Add(one)
 	}
@@ -759,7 +779,7 @@ func (d Decimal) ExpHullAbrham(overallPrecision uint32) (Decimal, error) {
 func (d Decimal) ExpTaylor(precision int32) (Decimal, error) {
 	// Note(mwoss): Implementation can be optimized by exclusively using big.Int API only
 	if d.IsZero() {
-		return Decimal{oneInt, 0}.Round(precision), nil
+		return Decimal{1, 0}.Round(precision), nil
 	}
 
 	var epsilon Decimal
@@ -815,29 +835,17 @@ func (d Decimal) ExpTaylor(precision int32) (Decimal, error) {
 // NumDigits returns the number of digits of the decimal coefficient (d.Value)
 // Note: Current implementation is extremely slow for large decimals and/or decimals with large fractional part
 func (d Decimal) NumDigits() int {
-	// Note(mwoss): It can be optimized, unnecessary cast of big.Int to string
-	if d.IsNegative() {
-		return len(d.value.String()) - 1
+	var count int
+	num := d.value
+	for num != 0 {
+		num /= 10
+		count++
 	}
-	return len(d.value.String())
+	return count
 }
 
 // IsInteger returns true when decimal can be represented as an integer value, otherwise, it returns false.
 func (d Decimal) IsInteger() bool {
-	// The most typical case, all decimal with exponent higher or equal 0 can be represented as integer
-	if d.exp >= 0 {
-		return true
-	}
-	// When the exponent is negative we have to check every number after the decimal place
-	// If all of them are zeroes, we are sure that given decimal can be represented as an integer
-	var r big.Int
-	q := new(big.Int).Set(d.value)
-	for z := abs(d.exp); z > 0; z-- {
-		q.QuoRem(q, tenInt, &r)
-		if r.Cmp(zeroInt) != 0 {
-			return false
-		}
-	}
 	return true
 }
 
@@ -856,16 +864,23 @@ func abs(n int32) int32 {
 //     +1 if d >  d2
 //
 func (d Decimal) Cmp(d2 Decimal) int {
-	d.ensureInitialized()
-	d2.ensureInitialized()
-
-	if d.exp == d2.exp {
-		return d.value.Cmp(d2.value)
+	if d.exp != d2.exp {
+		return cmp(d.value, d2.value)
 	}
 
 	rd, rd2 := RescalePair(d, d2)
 
-	return rd.value.Cmp(rd2.value)
+	return cmp(rd.value, rd2.value)
+}
+
+func cmp(v1, v2 int64) int {
+	if v1 == v2 {
+		return 0
+	}
+	if v1 > v2 {
+		return 1
+	}
+	return -1
 }
 
 // Equal returns whether the numbers represented by d and d2 are equal.
@@ -907,10 +922,13 @@ func (d Decimal) LessThanOrEqual(d2 Decimal) bool {
 //	+1 if d >  0
 //
 func (d Decimal) Sign() int {
-	if d.value == nil {
+	if d.value == 0 {
 		return 0
 	}
-	return d.value.Sign()
+	if d.value > 0 {
+		return 1
+	}
+	return -1
 }
 
 // IsPositive return
@@ -947,22 +965,20 @@ func (d Decimal) Exponent() int32 {
 
 // Coefficient returns the coefficient of the decimal. It is scaled by 10^Exponent()
 func (d Decimal) Coefficient() *big.Int {
-	d.ensureInitialized()
 	// we copy the coefficient so that mutating the result does not mutate the Decimal.
-	return new(big.Int).Set(d.value)
+	return big.NewInt(d.value)
 }
 
 // CoefficientInt64 returns the coefficient of the decimal as int64. It is scaled by 10^Exponent()
 // If coefficient cannot be represented in an int64, the result will be undefined.
 func (d Decimal) CoefficientInt64() int64 {
-	d.ensureInitialized()
-	return d.value.Int64()
+	return d.value
 }
 
 // IntPart returns the integer component of the decimal.
 func (d Decimal) IntPart() int64 {
 	scaledD := d.rescale(0)
-	return scaledD.value.Int64()
+	return scaledD.value
 }
 
 // BigInt returns integer component of the decimal as a BigInt.
@@ -983,15 +999,14 @@ func (d Decimal) BigFloat() *big.Float {
 
 // Rat returns a rational number representation of the decimal.
 func (d Decimal) Rat() *big.Rat {
-	d.ensureInitialized()
 	if d.exp <= 0 {
 		// NOTE(vadim): must negate after casting to prevent int32 overflow
 		denom := new(big.Int).Exp(tenInt, big.NewInt(-int64(d.exp)), nil)
-		return new(big.Rat).SetFrac(d.value, denom)
+		return new(big.Rat).SetFrac(big.NewInt(d.value), denom)
 	}
 
 	mul := new(big.Int).Exp(tenInt, big.NewInt(int64(d.exp)), nil)
-	num := new(big.Int).Mul(d.value, mul)
+	num := new(big.Int).Mul(big.NewInt(d.value), mul)
 	return new(big.Rat).SetFrac(num, oneInt)
 }
 
@@ -1084,17 +1099,18 @@ func (d Decimal) Round(places int32) Decimal {
 	ret := d.rescale(-places - 1)
 
 	// add sign(d) * 0.5
-	if ret.value.Sign() < 0 {
-		ret.value.Sub(ret.value, fiveInt)
+	if ret.Sign() < 0 {
+		ret.value -= 5
 	} else {
-		ret.value.Add(ret.value, fiveInt)
+		ret.value += 5
 	}
 
 	// floor for positive numbers, ceil for negative numbers
-	_, m := ret.value.DivMod(ret.value, tenInt, new(big.Int))
+	dValue := big.NewInt(ret.value)
+	_, m := new(big.Int).DivMod(dValue, tenInt, new(big.Int))
 	ret.exp++
-	if ret.value.Sign() < 0 && m.Cmp(zeroInt) != 0 {
-		ret.value.Add(ret.value, oneInt)
+	if ret.Sign() < 0 && m.Cmp(zeroInt) != 0 {
+		ret.value += 1
 	}
 
 	return ret
@@ -1119,8 +1135,8 @@ func (d Decimal) RoundCeil(places int32) Decimal {
 		return d
 	}
 
-	if d.value.Sign() > 0 {
-		rescaled.value.Add(rescaled.value, oneInt)
+	if d.Sign() > 0 {
+		rescaled.value += 1
 	}
 
 	return rescaled
@@ -1145,8 +1161,8 @@ func (d Decimal) RoundFloor(places int32) Decimal {
 		return d
 	}
 
-	if d.value.Sign() < 0 {
-		rescaled.value.Sub(rescaled.value, oneInt)
+	if d.Sign() < 0 {
+		rescaled.value -= 1
 	}
 
 	return rescaled
@@ -1171,10 +1187,10 @@ func (d Decimal) RoundUp(places int32) Decimal {
 		return d
 	}
 
-	if d.value.Sign() > 0 {
-		rescaled.value.Add(rescaled.value, oneInt)
-	} else if d.value.Sign() < 0 {
-		rescaled.value.Sub(rescaled.value, oneInt)
+	if d.Sign() > 0 {
+		rescaled.value += 1
+	} else if d.Sign() < 0 {
+		rescaled.value -= 1
 	}
 
 	return rescaled
@@ -1222,11 +1238,11 @@ func (d Decimal) RoundBank(places int32) Decimal {
 	remainder := d.Sub(round).Abs()
 
 	half := New(5, -places-1)
-	if remainder.Cmp(half) == 0 && round.value.Bit(0) != 0 {
-		if round.value.Sign() < 0 {
-			round.value.Add(round.value, oneInt)
+	if remainder.Cmp(half) == 0 && big.NewInt(round.value).Bit(0) != 0 {
+		if round.Sign() < 0 {
+			round.value += 1
 		} else {
-			round.value.Sub(round.value, oneInt)
+			round.value -= 1
 		}
 	}
 
@@ -1260,7 +1276,7 @@ func (d Decimal) RoundCash(interval uint8) Decimal {
 		panic(fmt.Sprintf("Decimal does not support this Cash rounding interval `%d`. Supported: 5, 10, 25, 50, 100", interval))
 	}
 	dVal := Decimal{
-		value: iVal,
+		value: iVal.Int64(),
 	}
 
 	// TODO: optimize those calculations to reduce the high allocations (~29 allocs).
@@ -1269,8 +1285,6 @@ func (d Decimal) RoundCash(interval uint8) Decimal {
 
 // Floor returns the nearest integer value less than or equal to d.
 func (d Decimal) Floor() Decimal {
-	d.ensureInitialized()
-
 	if d.exp >= 0 {
 		return d
 	}
@@ -1280,14 +1294,12 @@ func (d Decimal) Floor() Decimal {
 	// NOTE(vadim): must negate after casting to prevent int32 overflow
 	exp.Exp(exp, big.NewInt(-int64(d.exp)), nil)
 
-	z := new(big.Int).Div(d.value, exp)
-	return Decimal{value: z, exp: 0}
+	z := new(big.Int).Div(big.NewInt(d.value), exp)
+	return Decimal{value: z.Int64(), exp: 0}
 }
 
 // Ceil returns the nearest integer value greater than or equal to d.
 func (d Decimal) Ceil() Decimal {
-	d.ensureInitialized()
-
 	if d.exp >= 0 {
 		return d
 	}
@@ -1297,11 +1309,11 @@ func (d Decimal) Ceil() Decimal {
 	// NOTE(vadim): must negate after casting to prevent int32 overflow
 	exp.Exp(exp, big.NewInt(-int64(d.exp)), nil)
 
-	z, m := new(big.Int).DivMod(d.value, exp, new(big.Int))
+	z, m := new(big.Int).DivMod(big.NewInt(d.value), exp, new(big.Int))
 	if m.Cmp(zeroInt) != 0 {
 		z.Add(z, oneInt)
 	}
-	return Decimal{value: z, exp: 0}
+	return Decimal{value: z.Int64(), exp: 0}
 }
 
 // Truncate truncates off digits from the number, without rounding.
@@ -1313,7 +1325,6 @@ func (d Decimal) Ceil() Decimal {
 //     decimal.NewFromString("123.456").Truncate(2).String() // "123.45"
 //
 func (d Decimal) Truncate(precision int32) Decimal {
-	d.ensureInitialized()
 	if precision >= 0 && -precision > d.exp {
 		return d.rescale(-precision)
 	}
@@ -1363,10 +1374,7 @@ func (d *Decimal) UnmarshalBinary(data []byte) error {
 	d.exp = int32(binary.BigEndian.Uint32(data[:4]))
 
 	// Extract the value
-	d.value = new(big.Int)
-	if err := d.value.GobDecode(data[4:]); err != nil {
-		return fmt.Errorf("error decoding binary %v: %s", data, err)
-	}
+	d.value = int64(binary.BigEndian.Uint64(data[4:]))
 
 	return nil
 }
@@ -1378,10 +1386,8 @@ func (d Decimal) MarshalBinary() (data []byte, err error) {
 	binary.BigEndian.PutUint32(v1, uint32(d.exp))
 
 	// Add the value
-	var v2 []byte
-	if v2, err = d.value.GobEncode(); err != nil {
-		return
-	}
+	v2 := make([]byte, 8)
+	binary.BigEndian.PutUint64(v2, uint64(d.value))
 
 	// Return the byte array
 	data = append(v1, v2...)
@@ -1462,10 +1468,10 @@ func (d Decimal) StringScaled(exp int32) string {
 
 func (d Decimal) string(trimTrailingZeros bool) string {
 	if d.exp >= 0 {
-		return d.rescale(0).value.String()
+		return strconv.FormatInt(d.rescale(0).value, 10)
 	}
 
-	abs := new(big.Int).Abs(d.value)
+	abs := new(big.Int).Abs(big.NewInt(d.value))
 	str := abs.String()
 
 	var intPart, fractionalPart string
@@ -1498,17 +1504,11 @@ func (d Decimal) string(trimTrailingZeros bool) string {
 		number += "." + fractionalPart
 	}
 
-	if d.value.Sign() < 0 {
+	if d.Sign() < 0 {
 		return "-" + number
 	}
 
 	return number
-}
-
-func (d *Decimal) ensureInitialized() {
-	if d.value == nil {
-		d.value = new(big.Int)
-	}
 }
 
 // Min returns the smallest Decimal that was passed in the arguments.
@@ -1564,9 +1564,6 @@ func Avg(first Decimal, rest ...Decimal) Decimal {
 
 // RescalePair rescales two decimals to common exponential value (minimal exp of both decimals)
 func RescalePair(d1 Decimal, d2 Decimal) (Decimal, Decimal) {
-	d1.ensureInitialized()
-	d2.ensureInitialized()
-
 	if d1.exp == d2.exp {
 		return d1, d2
 	}

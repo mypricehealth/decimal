@@ -110,9 +110,9 @@ func TestNewFromFloat(t *testing.T) {
 		s := x.short
 		d := NewFromFloat(x.float)
 		if d.String() != s {
-			t.Errorf("expected %s, got %s (float: %v) (%s, %d)",
+			t.Errorf("expected %s, got %s (float: %v) (%d, %d)",
 				s, d.String(), x.float,
-				d.value.String(), d.exp)
+				d.value, d.exp)
 		}
 	}
 
@@ -146,9 +146,9 @@ func TestNewFromFloatRandom(t *testing.T) {
 		}
 		got := NewFromFloat(in)
 		if !want.Equal(got) {
-			t.Errorf("in: %v, expected %s (%s, %d), got %s (%s, %d) ",
-				in, want.String(), want.value.String(), want.exp,
-				got.String(), got.value.String(), got.exp)
+			t.Errorf("in: %v, expected %s (%d, %d), got %s (%d, %d) ",
+				in, want.String(), want.value, want.exp,
+				got.String(), got.value, got.exp)
 		}
 	}
 }
@@ -183,9 +183,9 @@ func TestNewFromFloat32Random(t *testing.T) {
 		}
 		got := NewFromFloat32(in)
 		if !want.Equal(got) {
-			t.Errorf("in: %v, expected %s (%s, %d), got %s (%s, %d) ",
-				in, want.String(), want.value.String(), want.exp,
-				got.String(), got.value.String(), got.exp)
+			t.Errorf("in: %v, expected %s (%d, %d), got %s (%d, %d) ",
+				in, want.String(), want.value, want.exp,
+				got.String(), got.value, got.exp)
 		}
 	}
 }
@@ -211,9 +211,9 @@ func TestNewFromString(t *testing.T) {
 		if err != nil {
 			t.Errorf("error while parsing %s", s)
 		} else if d.String() != s {
-			t.Errorf("expected %s, got %s (%s, %d)",
+			t.Errorf("expected %s, got %s (%d, %d)",
 				s, d.String(),
-				d.value.String(), d.exp)
+				d.value, d.exp)
 		}
 	}
 
@@ -223,9 +223,9 @@ func TestNewFromString(t *testing.T) {
 		if err != nil {
 			t.Errorf("error while parsing %s", s)
 		} else if d.String() != s {
-			t.Errorf("expected %s, got %s (%s, %d)",
+			t.Errorf("expected %s, got %s (%d, %d)",
 				s, d.String(),
-				d.value.String(), d.exp)
+				d.value, d.exp)
 		}
 	}
 
@@ -234,9 +234,9 @@ func TestNewFromString(t *testing.T) {
 		if err != nil {
 			t.Errorf("error while parsing %s", e)
 		} else if d.String() != s {
-			t.Errorf("expected %s, got %s (%s, %d)",
+			t.Errorf("expected %s, got %s (%d, %d)",
 				s, d.String(),
-				d.value.String(), d.exp)
+				d.value, d.exp)
 		}
 	}
 }
@@ -380,9 +380,9 @@ func TestRequireFromString(t *testing.T) {
 
 	d := RequireFromString(s)
 	if d.String() != s {
-		t.Errorf("expected %s, got %s (%s, %d)",
+		t.Errorf("expected %s, got %s (%d, %d)",
 			s, d.String(),
-			d.value.String(), d.exp)
+			d.value, d.exp)
 	}
 }
 
@@ -454,9 +454,9 @@ func TestNewFromFloatWithExponent(t *testing.T) {
 	for input, s := range tests {
 		d := NewFromFloatWithExponent(input.float, input.exp)
 		if d.String() != s {
-			t.Errorf("expected %s, got %s (%s, %d)",
+			t.Errorf("expected %s, got %s (%d, %d)",
 				s, d.String(),
-				d.value.String(), d.exp)
+				d.value, d.exp)
 		}
 	}
 
@@ -492,9 +492,9 @@ func TestNewFromInt(t *testing.T) {
 	for input, s := range tests {
 		d := NewFromInt(input)
 		if d.String() != s {
-			t.Errorf("expected %s, got %s (%s, %d)",
+			t.Errorf("expected %s, got %s (%d, %d)",
 				s, d.String(),
-				d.value.String(), d.exp)
+				d.value, d.exp)
 		}
 	}
 }
@@ -517,14 +517,15 @@ func TestNewFromInt32(t *testing.T) {
 	for input, s := range tests {
 		d := NewFromInt32(input)
 		if d.String() != s {
-			t.Errorf("expected %s, got %s (%s, %d)",
+			t.Errorf("expected %s, got %s (%d, %d)",
 				s, d.String(),
-				d.value.String(), d.exp)
+				d.value, d.exp)
 		}
 	}
 }
 
 func TestNewFromBigIntWithExponent(t *testing.T) {
+	zero := big.NewInt(0)
 	type Inp struct {
 		val *big.Int
 		exp int32
@@ -541,7 +542,7 @@ func TestNewFromBigIntWithExponent(t *testing.T) {
 
 	// add negatives
 	for p, s := range tests {
-		if p.val.Cmp(Zero.value) > 0 {
+		if p.val.Cmp(zero) > 0 {
 			tests[Inp{p.val.Neg(p.val), p.exp}] = "-" + s
 		}
 	}
@@ -549,9 +550,9 @@ func TestNewFromBigIntWithExponent(t *testing.T) {
 	for input, s := range tests {
 		d := NewFromBigInt(input.val, input.exp)
 		if d.String() != s {
-			t.Errorf("expected %s, got %s (%s, %d)",
+			t.Errorf("expected %s, got %s (%d, %d)",
 				s, d.String(),
-				d.value.String(), d.exp)
+				d.value, d.exp)
 		}
 	}
 }
@@ -584,9 +585,9 @@ func TestJSON(t *testing.T) {
 		if err != nil {
 			t.Errorf("error unmarshaling %s: %v", docStr, err)
 		} else if doc.Amount.String() != s {
-			t.Errorf("expected %s, got %s (%s, %d)",
+			t.Errorf("expected %s, got %s (%d, %d)",
 				s, doc.Amount.String(),
-				doc.Amount.value.String(), doc.Amount.exp)
+				doc.Amount.value, doc.Amount.exp)
 		}
 
 		out, err := json.Marshal(&doc)
@@ -617,9 +618,9 @@ func TestUnmarshalJSONNull(t *testing.T) {
 	if err != nil {
 		t.Errorf("error unmarshaling %s: %v", docStr, err)
 	} else if !doc.Amount.Equal(Zero) {
-		t.Errorf("expected Zero, got %s (%s, %d)",
+		t.Errorf("expected Zero, got %s (%d, %d)",
 			doc.Amount.String(),
-			doc.Amount.value.String(), doc.Amount.exp)
+			doc.Amount.value, doc.Amount.exp)
 	}
 }
 
@@ -658,9 +659,9 @@ func TestNullDecimalJSON(t *testing.T) {
 				t.Errorf("expected %s to be valid (not NULL), got Valid = false", s)
 			}
 			if doc.Amount.Decimal.String() != s {
-				t.Errorf("expected %s, got %s (%s, %d)",
+				t.Errorf("expected %s, got %s (%d, %d)",
 					s, doc.Amount.Decimal.String(),
-					doc.Amount.Decimal.value.String(), doc.Amount.Decimal.exp)
+					doc.Amount.Decimal.value, doc.Amount.Decimal.exp)
 			}
 		}
 
@@ -690,9 +691,9 @@ func TestNullDecimalJSON(t *testing.T) {
 	if err != nil {
 		t.Errorf("error unmarshaling %s: %v", docStr, err)
 	} else if doc.Amount.Valid {
-		t.Errorf("expected null value to have Valid = false, got Valid = true and Decimal = %s (%s, %d)",
+		t.Errorf("expected null value to have Valid = false, got Valid = true and Decimal = %s (%d, %d)",
 			doc.Amount.Decimal.String(),
-			doc.Amount.Decimal.value.String(), doc.Amount.Decimal.exp)
+			doc.Amount.Decimal.value, doc.Amount.Decimal.exp)
 	}
 
 	expected := `{"amount":null}`
@@ -747,9 +748,9 @@ func TestXML(t *testing.T) {
 		if err != nil {
 			t.Errorf("error unmarshaling %s: %v", docStr, err)
 		} else if doc.Amount.String() != s {
-			t.Errorf("expected %s, got %s (%s, %d)",
+			t.Errorf("expected %s, got %s (%d, %d)",
 				s, doc.Amount.String(),
-				doc.Amount.value.String(), doc.Amount.exp)
+				doc.Amount.value, doc.Amount.exp)
 		}
 
 		out, err := xml.Marshal(&doc)
@@ -795,9 +796,9 @@ func TestNullDecimalXML(t *testing.T) {
 		if err != nil {
 			t.Errorf("error unmarshaling %s: %v", docStr, err)
 		} else if doc.Amount.Decimal.String() != s {
-			t.Errorf("expected %s, got %s (%s, %d)",
+			t.Errorf("expected %s, got %s (%d, %d)",
 				s, doc.Amount.Decimal.String(),
-				doc.Amount.Decimal.value.String(), doc.Amount.Decimal.exp)
+				doc.Amount.Decimal.value, doc.Amount.Decimal.exp)
 		}
 
 		out, err := xml.Marshal(&doc)
@@ -819,9 +820,9 @@ func TestNullDecimalXML(t *testing.T) {
 	if err != nil {
 		t.Errorf("error unmarshaling: %s: %v", docStr, err)
 	} else if doc.Amount.Valid {
-		t.Errorf("expected null value to have Valid = false, got Valid = true and Decimal = %s (%s, %d)",
+		t.Errorf("expected null value to have Valid = false, got Valid = true and Decimal = %s (%d, %d)",
 			doc.Amount.Decimal.String(),
-			doc.Amount.Decimal.value.String(), doc.Amount.Decimal.exp)
+			doc.Amount.Decimal.value, doc.Amount.Decimal.exp)
 	}
 
 	expected := `<account><amount></amount></account>`
@@ -838,9 +839,9 @@ func TestNullDecimalXML(t *testing.T) {
 	if err != nil {
 		t.Errorf("error unmarshaling: %s: %v", docStr, err)
 	} else if doc.Amount.Valid {
-		t.Errorf("expected null value to have Valid = false, got Valid = true and Decimal = %s (%s, %d)",
+		t.Errorf("expected null value to have Valid = false, got Valid = true and Decimal = %s (%d, %d)",
 			doc.Amount.Decimal.String(),
-			doc.Amount.Decimal.value.String(), doc.Amount.Decimal.exp)
+			doc.Amount.Decimal.value, doc.Amount.Decimal.exp)
 	}
 
 	expected = `<account><amount></amount></account>`
@@ -896,9 +897,9 @@ func TestDecimal_rescale(t *testing.T) {
 		d := New(input.int, input.exp).rescale(input.rescale)
 
 		if d.String() != s {
-			t.Errorf("expected %s, got %s (%s, %d)",
+			t.Errorf("expected %s, got %s (%d, %d)",
 				s, d.String(),
-				d.value.String(), d.exp)
+				d.value, d.exp)
 		}
 
 		// test StringScaled
@@ -1885,7 +1886,7 @@ func TestDecimal_QuoRem(t *testing.T) {
 			t.Errorf("remainder too large: d=%v, d2= %v, prec=%d, q=%v, r=%v",
 				d, d2, prec, q, r)
 		}
-		if r.value.Sign()*d.value.Sign() < 0 {
+		if r.Sign()*d.Sign() < 0 {
 			t.Errorf("signum of divisor and rest do not match: d=%v, d2= %v, prec=%d, q=%v, r=%v",
 				d, d2, prec, q, r)
 		}
@@ -1950,7 +1951,7 @@ func TestDecimal_QuoRem2(t *testing.T) {
 				d, d2, prec, q, r)
 		}
 		// rule 4: r and d have the same sign
-		if r.value.Sign()*d.value.Sign() < 0 {
+		if r.Sign()*d.Sign() < 0 {
 			t.Errorf("signum of divisor and rest do not match, "+
 				"d=%v, d2=%v, prec=%d, q=%v, r=%v",
 				d, d2, prec, q, r)
@@ -1977,7 +1978,7 @@ func (d Decimal) DivOld(d2 Decimal, prec int) Decimal {
 }
 
 func sign(d Decimal) int {
-	return d.value.Sign()
+	return d.Sign()
 }
 
 // rules for rounded divide, rounded to integer
