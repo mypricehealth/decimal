@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"math/big"
 	"strconv"
 	"unsafe"
 )
@@ -158,19 +159,24 @@ func New(value int64, scale int) (Decimal, error) {
 	return newSafe(neg, coef, scale)
 }
 
-// NewFromInt64 converts a pair of integers, representing the whole and
+func NewFromInt64(i int64) Decimal {
+	d, _ := New(i, 0)
+	return d
+}
+
+// NewFromParts converts a pair of integers, representing the whole and
 // fractional parts, to a (possibly rounded) decimal equal to whole + frac / 10^scale.
-// NewFromInt64 removes all trailing zeros from the fractional part.
+// NewFromParts removes all trailing zeros from the fractional part.
 // This method is useful for converting amounts from [protobuf] format.
-// See also method [Decimal.Int64].
+// See also method [Decimal.ToParts].
 //
-// NewFromInt64 returns an error if:
+// NewFromParts returns an error if:
 //   - the whole and fractional parts have different signs;
 //   - the scale is negative or greater than [MaxScale];
 //   - frac / 10^scale is not within the range (-1, 1).
 //
 // [protobuf]: https://github.com/googleapis/googleapis/blob/master/google/type/money.proto
-func NewFromInt64(whole, frac int64, scale int) (Decimal, error) {
+func NewFromParts(whole, frac int64, scale int) (Decimal, error) {
 	// Whole
 	d, err := New(whole, 0)
 	if err != nil {
@@ -197,7 +203,7 @@ func NewFromInt64(whole, frac int64, scale int) (Decimal, error) {
 	return d, nil
 }
 
-// Int64 returns a pair of integers representing the whole and
+// ToParts returns a pair of integers representing the whole and
 // (possibly rounded) fractional parts of the decimal.
 // If given scale is greater than the scale of the decimal, then the fractional part
 // is zero-padded to the right.
@@ -206,14 +212,14 @@ func NewFromInt64(whole, frac int64, scale int) (Decimal, error) {
 // The relationship between the decimal and the returned values can be expressed
 // as d = whole + frac / 10^scale.
 // This method is useful for converting amounts to [protobuf] format.
-// See also constructor [NewFromInt64].
+// See also constructor [NewFromParts].
 //
 // If the result cannot be represented as a pair of int64 values,
 // then false is returned.
 //
 // [rounding half to even]: https://en.wikipedia.org/wiki/Rounding#Rounding_half_to_even
 // [protobuf]: https://github.com/googleapis/googleapis/blob/master/google/type/money.proto
-func (d Decimal) Int64(scale int) (whole, frac int64, ok bool) {
+func (d Decimal) ToParts(scale int) (whole, frac int64, ok bool) {
 	if scale < MinScale || scale > MaxScale {
 		return 0, 0, false
 	}
@@ -269,6 +275,17 @@ func NewFromFloat64(f float64) (Decimal, error) {
 	return d, nil
 }
 
+func MustNewFromFloat64(f float64) Decimal {
+	d, err := NewFromFloat64(f)
+	if err != nil {
+		panic(err)
+	}
+
+	return d
+}
+
+var ten = big.NewInt(10)
+
 // Float64 returns the nearest binary floating-point number rounded
 // using [rounding half to even] (banker's rounding).
 // See also constructor [NewFromFloat64].
@@ -278,12 +295,29 @@ func NewFromFloat64(f float64) (Decimal, error) {
 //
 // [rounding half to even]: https://en.wikipedia.org/wiki/Rounding#Rounding_half_to_even
 func (d Decimal) Float64() (f float64, ok bool) {
-	s := d.String()
-	f, err := strconv.ParseFloat(s, 64)
-	if err != nil {
-		return 0, false
-	}
-	return f, true
+	// Calculates `(sign * coef) / (10 ^ scale)`
+	sign := &big.Int{}
+	sign.SetInt64(int64(d.Sign()))
+
+	coefficient := &big.Int{}
+	coefficient.SetUint64(d.Coef())
+
+	signTimesCoefficient := sign.Mul(sign, coefficient)
+
+	scale := coefficient
+	scale.SetInt64(int64(d.Scale()))
+
+	pow10 := scale.Exp(ten, scale, nil)
+
+	result := &big.Rat{}
+	result.SetFrac(signTimesCoefficient, pow10)
+
+	return result.Float64()
+}
+
+func (d Decimal) InexactFloat64() float64 {
+	f, _ := d.Float64()
+	return f
 }
 
 // MustParse is like [Parse] but panics if the string cannot be parsed.
@@ -2443,6 +2477,24 @@ func (z *bint) exp(x *bint) {
 	z.rshDown(z, bscale)
 }
 
+func Min(d1 Decimal, d ...Decimal) Decimal {
+	result := d1
+	for _, item := range d {
+		result = result.Min(item)
+	}
+
+	return result
+}
+
+func Max(d1 Decimal, d ...Decimal) Decimal {
+	result := d1
+	for _, item := range d {
+		result = result.Max(item)
+	}
+
+	return result
+}
+
 // Sum returns the (possibly rounded) sum of decimals.
 // It computes d1 + d2 + ... + dn without intermediate rounding.
 //
@@ -3320,6 +3372,20 @@ func (d Decimal) CmpAbs(e Decimal) int {
 	return d.Cmp(e)
 }
 
+// Less compares decimals and returns:
+//
+//	 true if d < e
+//	false otherwise
+//
+// See also method [Decimal.Cmp].
+func (d Decimal) Less(e Decimal) bool {
+	return d.Cmp(e) < 0
+}
+
+func (d Decimal) LessOrEqual(e Decimal) bool {
+	return d.Cmp(e) <= 0
+}
+
 // Equal compares decimals and returns:
 //
 //	 true if d = e
@@ -3330,14 +3396,12 @@ func (d Decimal) Equal(e Decimal) bool {
 	return d.Cmp(e) == 0
 }
 
-// Less compares decimals and returns:
-//
-//	 true if d < e
-//	false otherwise
-//
-// See also method [Decimal.Cmp].
-func (d Decimal) Less(e Decimal) bool {
-	return d.Cmp(e) < 0
+func (d Decimal) GreaterOrEqual(e Decimal) bool {
+	return d.Cmp(e) >= 0
+}
+
+func (d Decimal) Greater(e Decimal) bool {
+	return d.Cmp(e) > 0
 }
 
 // Cmp compares decimals and returns:

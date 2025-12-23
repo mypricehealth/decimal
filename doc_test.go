@@ -170,11 +170,25 @@ func ExampleNew() {
 }
 
 func ExampleNewFromInt64() {
-	fmt.Println(decimal.NewFromInt64(5, 6, 1))
-	fmt.Println(decimal.NewFromInt64(5, 6, 2))
-	fmt.Println(decimal.NewFromInt64(5, 6, 3))
-	fmt.Println(decimal.NewFromInt64(5, 6, 4))
-	fmt.Println(decimal.NewFromInt64(5, 6, 5))
+	fmt.Println(decimal.NewFromInt64(3))
+	fmt.Println(decimal.NewFromInt64(14))
+	fmt.Println(decimal.NewFromInt64(151))
+	fmt.Println(decimal.NewFromInt64(9265))
+	fmt.Println(decimal.NewFromInt64(35897))
+	// Output:
+	// 3
+	// 14
+	// 151
+	// 9265
+	// 35897
+}
+
+func ExampleNewFromParts() {
+	fmt.Println(decimal.NewFromParts(5, 6, 1))
+	fmt.Println(decimal.NewFromParts(5, 6, 2))
+	fmt.Println(decimal.NewFromParts(5, 6, 3))
+	fmt.Println(decimal.NewFromParts(5, 6, 4))
+	fmt.Println(decimal.NewFromParts(5, 6, 5))
 	// Output:
 	// 5.6 <nil>
 	// 5.06 <nil>
@@ -338,11 +352,11 @@ func ExampleDecimal_Float64() {
 
 func ExampleDecimal_Int64() {
 	d := decimal.MustParse("5.67")
-	fmt.Println(d.Int64(0))
-	fmt.Println(d.Int64(1))
-	fmt.Println(d.Int64(2))
-	fmt.Println(d.Int64(3))
-	fmt.Println(d.Int64(4))
+	fmt.Println(d.ToParts(0))
+	fmt.Println(d.ToParts(1))
+	fmt.Println(d.ToParts(2))
+	fmt.Println(d.ToParts(3))
+	fmt.Println(d.ToParts(4))
 	// Output:
 	// 6 0 true
 	// 5 7 true

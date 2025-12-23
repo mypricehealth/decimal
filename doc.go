@@ -221,8 +221,8 @@ The second format represents decimals as [a pair of integers]:
 one for the integer part and another for the fractional part.
 This format does not preserve trailing zeros and rounds decimals
 with more than nine digits in the fractional part.
-For conversion between this format and decimals, use [NewFromInt64] and
-[Decimal.Int64] with a scale argument of "9".
+For conversion between this format and decimals, use [NewFromParts] and
+[Decimal.ToParts] with a scale argument of "9".
 Below is an example of a proto definition:
 
 	message Decimal {
