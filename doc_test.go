@@ -9,7 +9,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/govalues/decimal"
+	"github.com/mypricehealth/decimal"
 )
 
 // This example implements a simple calculator that evaluates mathematical

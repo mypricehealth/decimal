@@ -1,3 +1,3 @@
-module github.com/govalues/decimal
+module github.com/mypricehealth/decimal
 
 go 1.22
