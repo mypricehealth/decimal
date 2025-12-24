@@ -36,7 +36,7 @@ This package is designed specifically for use in transactional financial systems
 To add the decimal package to your Go workspace:
 
 ```bash
-go get github.com/govalues/decimal
+go get github.com/mypricehealth/decimal
 ```
 
 ### Basic Usage
@@ -49,7 +49,7 @@ package main
 
 import (
     "fmt"
-    "github.com/govalues/decimal"
+    "github.com/mypricehealth/decimal"
 )
 
 func main() {
@@ -109,7 +109,7 @@ func main() {
 ## Documentation
 
 For detailed documentation and additional examples, visit the package
-[documentation](https://pkg.go.dev/github.com/govalues/decimal#section-documentation).
+[documentation](https://pkg.go.dev/github.com/mypricehealth/decimal#section-documentation).
 For examples related to financial calculations, see the `money` package
 [documentation](https://pkg.go.dev/github.com/govalues/money#section-documentation).
 
@@ -127,8 +127,9 @@ Comparison with other popular packages:
 | Mutability           | Immutable | Mutable[^reason]         | Immutable                   |
 | Mathematical Context | Implicit  | Explicit                 | Implicit                    |
 
-[^reason]: decimal package was created simply because [shopspring/decimal] was
-too slow and [cockroachdb/apd] was mutable.
+[^reason]:
+    decimal package was created simply because [shopspring/decimal] was
+    too slow and [cockroachdb/apd] was mutable.
 
 [^divzero]: [shopspring/decimal] panics on division by zero.
 
@@ -137,14 +138,14 @@ too slow and [cockroachdb/apd] was mutable.
 ```text
 goos: linux
 goarch: amd64
-pkg: github.com/govalues/decimal-tests
-cpu: AMD Ryzen 7 3700C  with Radeon Vega Mobile Gfx 
+pkg: github.com/mypricehealth/decimal-tests
+cpu: AMD Ryzen 7 3700C  with Radeon Vega Mobile Gfx
 ```
 
 | Test Case | Expression            | govalues | [cockroachdb/apd] v3.2.1 | [shopspring/decimal] v1.4.0 | govalues vs cockroachdb | govalues vs shopspring |
 | --------- | --------------------- | -------: | -----------------------: | --------------------------: | ----------------------: | ---------------------: |
 | Add       | 5 + 6                 |   16.06n |                   74.88n |                     140.90n |                +366.22% |               +777.33% |
-| Mul       | 2 * 3                 |   16.93n |                   62.20n |                     146.00n |                +267.40% |               +762.37% |
+| Mul       | 2 \* 3                |   16.93n |                   62.20n |                     146.00n |                +267.40% |               +762.37% |
 | Quo       | 2 / 4 (exact)         |   59.52n |                  176.95n |                     657.40n |                +197.30% |              +1004.50% |
 | Quo       | 2 / 3 (inexact)       |  391.60n |                  976.80n |                    2962.50n |                +149.39% |               +656.42% |
 | PowInt    | 1.1^60                |  950.90n |                 3302.50n |                    4599.50n |                +247.32% |               +383.73% |
@@ -163,18 +164,18 @@ cpu: AMD Ryzen 7 3700C  with Radeon Vega Mobile Gfx
 
 The benchmark results shown in the table are provided for informational purposes only and may vary depending on your specific use case.
 
-[codecov]: https://codecov.io/gh/govalues/decimal
-[codecovb]: https://img.shields.io/codecov/c/github/govalues/decimal/main?color=brightcolor
-[goreport]: https://goreportcard.com/report/github.com/govalues/decimal
-[goreportb]: https://goreportcard.com/badge/github.com/govalues/decimal
-[github]: https://github.com/govalues/decimal/actions/workflows/go.yml
-[githubb]: https://img.shields.io/github/actions/workflow/status/govalues/decimal/go.yml
-[godoc]: https://pkg.go.dev/github.com/govalues/decimal#section-documentation
+[codecov]: https://codecov.io/gh/mypricehealth/decimal
+[codecovb]: https://img.shields.io/codecov/c/github/mypricehealth/decimal/main?color=brightcolor
+[goreport]: https://goreportcard.com/report/github.com/mypricehealth/decimal
+[goreportb]: https://goreportcard.com/badge/github.com/mypricehealth/decimal
+[github]: https://github.com/mypricehealth/decimal/actions/workflows/go.yml
+[githubb]: https://img.shields.io/github/actions/workflow/status/mypricehealth/decimal/go.yml
+[godoc]: https://pkg.go.dev/github.com/mypricehealth/decimal#section-documentation
 [godocb]: https://img.shields.io/badge/go.dev-reference-blue
 [version]: https://go.dev/dl
-[versionb]: https://img.shields.io/github/go-mod/go-version/govalues/decimal?label=go
+[versionb]: https://img.shields.io/github/go-mod/go-version/mypricehealth/decimal?label=go
 [license]: https://en.wikipedia.org/wiki/MIT_License
-[licenseb]: https://img.shields.io/github/license/govalues/decimal?color=blue
+[licenseb]: https://img.shields.io/github/license/mypricehealth/decimal?color=blue
 [awesome]: https://github.com/avelino/awesome-go#financial
 [awesomeb]: https://awesome.re/mentioned-badge.svg
 [cockroachdb/apd]: https://pkg.go.dev/github.com/cockroachdb/apd
@@ -184,5 +185,5 @@ The benchmark results shown in the table are provided for informational purposes
 [encoding/xml]: https://pkg.go.dev/encoding#TextUnmarshaler
 [database/sql]: https://pkg.go.dev/database/sql#Scanner
 [specification]: https://speleotrove.com/decimal/telcoSpec.html
-[fuzz testing]: https://github.com/govalues/decimal-tests
+[fuzz testing]: https://github.com/mypricehealth/decimal-tests
 [half-to-even]: https://en.wikipedia.org/wiki/Rounding#Rounding_half_to_even
