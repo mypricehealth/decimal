@@ -190,7 +190,7 @@ func TestNewFromInt64(t *testing.T) {
 			{math.MaxInt64, math.MaxInt64, 19, "9223372036854775808"},
 		}
 		for _, tt := range tests {
-			got, err := NewFromInt64(tt.whole, tt.frac, tt.scale)
+			got, err := NewFromParts(tt.whole, tt.frac, tt.scale)
 			if err != nil {
 				t.Errorf("NewFromInt64(%v, %v, %v) failed: %v", tt.whole, tt.frac, tt.scale, err)
 				continue
@@ -216,7 +216,7 @@ func TestNewFromInt64(t *testing.T) {
 		}
 		for name, tt := range tests {
 			t.Run(name, func(t *testing.T) {
-				_, err := NewFromInt64(tt.whole, tt.frac, tt.scale)
+				_, err := NewFromParts(tt.whole, tt.frac, tt.scale)
 				if err == nil {
 					t.Errorf("NewFromInt64(%v, %v, %v) did not fail", tt.whole, tt.frac, tt.scale)
 				}
@@ -1314,16 +1314,16 @@ func TestDecimal_Float64(t *testing.T) {
 		wantFloat float64
 		wantOk    bool
 	}{
-		{"-9999999999999999999", -9999999999999999999, true},
+		{"-9999999999999999999", -10000000000000000000, false},
 		{"-1000000000000000000", -1000000000000000000, true},
 		{"-1", -1, true},
-		{"-0.9999999999999999999", -0.9999999999999999999, true},
-		{"-0.0000000000000000001", -0.0000000000000000001, true},
-		{"0.0000000000000000001", 0.0000000000000000001, true},
-		{"0.9999999999999999999", 0.9999999999999999999, true},
+		{"-0.9999999999999999999", -1, false},
+		{"-0.0000000000000000001", -0.0000000000000000000999999999999999975245926835260131855729159055676881799265554029432223615003749728, false},
+		{"0.0000000000000000001", 0.0000000000000000000999999999999999975245926835260131855729159055676881799265554029432223615003749728, false},
+		{"0.9999999999999999999", 1, false},
 		{"1", 1, true},
 		{"1000000000000000000", 1000000000000000000, true},
-		{"9999999999999999999", 9999999999999999999, true},
+		{"9999999999999999999", 10000000000000000000, false},
 	}
 	for _, tt := range tests {
 		d := MustParse(tt.d)
@@ -1444,7 +1444,7 @@ func TestDecimal_Int64(t *testing.T) {
 	}
 	for _, tt := range tests {
 		d := MustParse(tt.d)
-		gotWhole, gotFrac, gotOk := d.Int64(tt.scale)
+		gotWhole, gotFrac, gotOk := d.ToParts(tt.scale)
 		if gotWhole != tt.wantWhole || gotFrac != tt.wantFrac || gotOk != tt.wantOk {
 			t.Errorf("%q.Int64(%v) = [%v %v %v], want [%v %v %v]", d, tt.scale, gotWhole, gotFrac, gotOk, tt.wantWhole, tt.wantFrac, tt.wantOk)
 		}
@@ -6515,12 +6515,12 @@ func FuzzDecimal_Int64_NewFromInt64(f *testing.F) {
 				return
 			}
 
-			w, f, ok := d.Int64(scale)
+			w, f, ok := d.ToParts(scale)
 			if !ok {
 				t.Skip()
 				return
 			}
-			got, err := NewFromInt64(w, f, scale)
+			got, err := NewFromParts(w, f, scale)
 			if err != nil {
 				t.Logf("%q.Int64(%v) = (%v, %v)", d, scale, w, f)
 				t.Errorf("NewFromInt64(%v, %v, %v) failed: %v", w, f, scale, err)
